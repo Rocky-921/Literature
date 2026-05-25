@@ -9,8 +9,13 @@ npm install
 ```bash
 node server.js
 ```
-
 Server starts at `http://0.0.0.0:3000`
+
+To run on pubic internet:
+```bash
+ngrok http 3000
+```
+link will be shown on the terminal
 
 ## Play
 1. One player opens `http://<your-ip>:3000` and creates a room
