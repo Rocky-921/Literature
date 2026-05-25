@@ -2,7 +2,10 @@
 
 ## Setup (one-time)
 ```bash
+npm init -y
 npm install
+npm install express
+npm install ws
 ```
 
 ## Run
