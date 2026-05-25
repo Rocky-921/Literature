@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Literature — Card Game</title>
+<style>
+:root {
+  --bg: #0f1117;
+  --surface: #1a1d2e;
+  --surface2: #252840;
+  --surface3: #2f3354;
+  --border: rgba(255,255,255,0.08);
+  --border2: rgba(255,255,255,0.15);
+  --text: #e8eaf6;
+  --text2: #9198c4;
+  --text3: #5a6190;
+  --teamA: #4f8ef7;
+  --teamB: #f7704f;
+  --teamA-bg: rgba(79,142,247,0.12);
+  --teamB-bg: rgba(247,112,79,0.12);
+  --success: #52e0a0;
+  --fail: #f05050;
+  --gold: #f7c94f;
+  --hearts: #ff6b6b;
+  --diamonds: #ff8c42;
+  --spades: #8b95ff;
+  --clubs: #52d9a0;
+  --radius: 12px;
+  --radius-sm: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+
+/* ── LOBBY ── */
+#lobby { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; }
+.logo { font-size: 42px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px; }
+.logo span { color: var(--gold); }
+.tagline { color: var(--text2); font-size: 14px; margin-bottom: 40px; }
+.card-box { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 28px; width: 100%; max-width: 400px; }
+.card-box h2 { font-size: 16px; font-weight: 600; margin-bottom: 20px; color: var(--text2); text-transform: uppercase; letter-spacing: 1px; }
+input[type=text] { width: 100%; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); color: var(--text); font-size: 15px; padding: 10px 14px; outline: none; margin-bottom: 10px; }
+input[type=text]:focus { border-color: var(--teamA); }
+button { cursor: pointer; border: none; border-radius: var(--radius-sm); font-size: 14px; font-weight: 600; padding: 10px 20px; transition: 0.15s; }
+.btn-primary { background: var(--teamA); color: white; width: 100%; padding: 12px; font-size: 15px; }
+.btn-primary:hover { opacity: 0.88; }
+.btn-secondary { background: var(--surface3); color: var(--text); }
+.btn-secondary:hover { background: var(--surface2); }
+.divider { text-align: center; color: var(--text3); font-size: 13px; margin: 16px 0; position: relative; }
+.divider::before,.divider::after { content:''; position:absolute; top:50%; width:42%; height:1px; background:var(--border); }
+.divider::before { left:0; } .divider::after { right:0; }
+.error-msg { color: var(--fail); font-size: 13px; margin-top: 8px; text-align: center; }
+
+/* ── SEAT PICKER ── */
+#seatPicker { display: none; flex-direction: column; align-items: center; min-height: 100vh; padding: 24px; }
+.room-code { font-size: 13px; color: var(--text2); margin-bottom: 6px; }
+.room-code span { font-weight: 700; color: var(--gold); font-size: 20px; letter-spacing: 3px; }
+.seat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 24px 0; width: 100%; max-width: 400px; }
+.seat-slot { background: var(--surface); border: 2px solid var(--border); border-radius: var(--radius); padding: 16px 8px; text-align: center; cursor: pointer; transition: 0.15s; position: relative; }
+.seat-slot:hover:not(.taken):not(.mine) { border-color: var(--border2); background: var(--surface2); }
+.seat-slot.teamA { border-color: var(--teamA); background: var(--teamA-bg); }
+.seat-slot.teamB { border-color: var(--teamB); background: var(--teamB-bg); }
+.seat-slot.mine { border-color: var(--gold); }
+.seat-slot.taken { opacity: 0.7; cursor: not-allowed; }
+.seat-slot .seat-num { font-size: 10px; color: var(--text3); margin-bottom: 4px; }
+.seat-slot .seat-team { font-size: 11px; font-weight: 700; margin-bottom: 6px; }
+.seat-slot.teamA .seat-team { color: var(--teamA); }
+.seat-slot.teamB .seat-team { color: var(--teamB); }
+.seat-slot .seat-name { font-size: 13px; font-weight: 600; min-height: 18px; color: var(--text); }
+.seat-slot .me-badge { position: absolute; top: 4px; right: 6px; font-size: 9px; background: var(--gold); color: black; border-radius: 4px; padding: 1px 4px; font-weight: 700; }
+.team-legend { display: flex; gap: 24px; margin-bottom: 16px; }
+.team-legend .tl { font-size: 12px; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+.tl .dot { width: 10px; height: 10px; border-radius: 50%; }
+.tl.a .dot { background: var(--teamA); } .tl.b .dot { background: var(--teamB); }
+.seat-info { font-size: 12px; color: var(--text3); margin-bottom: 16px; text-align: center; }
+#startBtn { display: none; }
+
+/* ── GAME TABLE ── */
+#game { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
+.game-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 8px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+.gh-title { font-size: 15px; font-weight: 700; color: var(--gold); }
+.gh-room { font-size: 11px; color: var(--text3); }
+.gh-turn { margin-left: auto; font-size: 12px; padding: 4px 12px; border-radius: 20px; font-weight: 600; }
+.gh-turn.mine { background: var(--gold); color: #000; }
+.gh-turn.other { background: var(--surface2); color: var(--text2); }
+.game-body { display: flex; flex: 1; overflow: hidden; }
+.sidebar { width: 200px; background: var(--surface); border-right: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; flex-shrink: 0; }
+@media(max-width: 700px) { .sidebar { width: 120px; } }
+@media(max-width: 500px) { .sidebar { display: none; } }
+.main-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.table-area { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+
+/* Players on table */
+.players-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+@media(max-width: 600px) { .players-grid { grid-template-columns: repeat(2, 1fr); } }
+.player-card { background: var(--surface); border: 1.5px solid var(--border); border-radius: var(--radius); padding: 10px; cursor: pointer; transition: 0.15s; position: relative; }
+.player-card:hover:not(.me-card) { border-color: var(--border2); }
+.player-card.teamA { border-color: rgba(79,142,247,0.3); }
+.player-card.teamB { border-color: rgba(247,112,79,0.3); }
+.player-card.active-turn { box-shadow: 0 0 0 2px var(--gold); }
+.player-card.me-card { cursor: default; }
+.player-card.selected-target { box-shadow: 0 0 0 2px #52e0a0; }
+.pc-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.pc-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.teamA .pc-avatar { background: var(--teamA-bg); color: var(--teamA); }
+.teamB .pc-avatar { background: var(--teamB-bg); color: var(--teamB); }
+.pc-name { font-size: 12px; font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pc-team-tag { font-size: 9px; padding: 2px 5px; border-radius: 4px; font-weight: 700; }
+.teamA .pc-team-tag { background: var(--teamA-bg); color: var(--teamA); }
+.teamB .pc-team-tag { background: var(--teamB-bg); color: var(--teamB); }
+.pc-cards { display: flex; flex-wrap: wrap; gap: 3px; min-height: 24px; }
+.card-back { width: 18px; height: 26px; border-radius: 3px; background: linear-gradient(135deg, #3b4a9a, #1e2860); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; font-size: 8px; color: rgba(255,255,255,0.3); }
+.pc-count { font-size: 11px; color: var(--text3); margin-top: 4px; }
+.you-badge { position: absolute; top: 4px; right: 6px; font-size: 8px; background: var(--gold); color: #000; border-radius: 3px; padding: 1px 4px; font-weight: 700; }
+
+/* My hand */
+.my-hand-area { flex-shrink: 0; background: var(--surface); border-top: 1px solid var(--border); padding: 12px; }
+.my-hand-label { font-size: 11px; color: var(--text3); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.hand-cards { display: flex; flex-wrap: wrap; gap: 6px; }
+.playing-card { width: 44px; height: 64px; border-radius: 6px; background: white; border: 1.5px solid #ddd; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: 0.15s; position: relative; user-select: none; }
+.playing-card:hover { transform: translateY(-4px); }
+.playing-card.selected { transform: translateY(-8px); box-shadow: 0 4px 16px rgba(82,224,160,0.5); border-color: var(--success); }
+.playing-card.hearts,.playing-card.diamonds { color: #cc2222; }
+.playing-card.spades,.playing-card.clubs { color: #111; }
+.card-rank { font-size: 13px; font-weight: 800; line-height: 1; }
+.card-suit-icon { font-size: 16px; line-height: 1; }
+
+/* Action panel */
+.action-panel { background: var(--surface2); border-top: 1px solid var(--border); padding: 12px 16px; flex-shrink: 0; }
+.ap-title { font-size: 12px; color: var(--text3); margin-bottom: 8px; }
+.ap-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ap-info { font-size: 12px; color: var(--text2); }
+.btn-ask { background: var(--success); color: #000; font-weight: 700; font-size: 13px; padding: 8px 16px; }
+.btn-ask:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-declare { background: var(--gold); color: #000; font-weight: 700; font-size: 13px; padding: 8px 16px; }
+
+/* Books sidebar */
+.section-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+.book-item { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; font-size: 11px; margin-bottom: 4px; }
+.book-item.claimed-A { background: var(--teamA-bg); color: var(--teamA); }
+.book-item.claimed-B { background: var(--teamB-bg); color: var(--teamB); }
+.book-item.unclaimed { background: var(--surface2); color: var(--text3); }
+.book-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.score-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
+.score-box { text-align: center; padding: 8px; border-radius: var(--radius-sm); flex: 1; }
+.score-box.A { background: var(--teamA-bg); }
+.score-box.B { background: var(--teamB-bg); margin-left: 8px; }
+.score-num { font-size: 24px; font-weight: 800; }
+.score-box.A .score-num { color: var(--teamA); }
+.score-box.B .score-num { color: var(--teamB); }
+.score-label { font-size: 10px; color: var(--text3); }
+
+/* Log */
+.log-panel {
+  height: auto;
+  min-height: 40px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.log-item {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+.log-item.success { color: var(--success); }
+.log-item.fail { color: var(--fail); }
+.log-item.system { color: var(--text3); font-style: italic; }
+
+/* Declare modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
+.modal-close { float: right; background: none; border: none; color: var(--text3); font-size: 20px; cursor: pointer; margin-top: -4px; }
+.book-select-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.book-select-row label { font-size: 13px; color: var(--text2); min-width: 60px; }
+select { background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; color: var(--text); font-size: 13px; padding: 6px 10px; outline: none; }
+.declare-player-section { margin: 12px 0; background: var(--surface2); border-radius: var(--radius-sm); padding: 12px; }
+.declare-player-section h4 { font-size: 12px; color: var(--text2); margin-bottom: 8px; }
+.card-toggle { display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; border-radius: 5px; background: var(--surface3); border: 1.5px solid var(--border); cursor: pointer; font-size: 12px; margin: 3px; user-select: none; transition: 0.1s; }
+.card-toggle:hover { border-color: var(--border2); }
+.card-toggle.selected { background: var(--teamA-bg); border-color: var(--teamA); color: var(--teamA); }
+.card-toggle.hearts,.card-toggle.diamonds { color: #ff6b6b; }
+.card-toggle.spades,.card-toggle.clubs { color: #8b95ff; }
+.card-toggle.selected.hearts,.card-toggle.selected.diamonds { color: var(--fail); border-color: var(--fail); background: rgba(255,80,80,0.12); }
+.declare-warn { font-size: 12px; color: var(--fail); margin-top: 8px; }
+
+/* End screen */
+#endScreen { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 200; align-items: center; justify-content: center; flex-direction: column; }
+.end-title { font-size: 48px; font-weight: 800; color: var(--gold); margin-bottom: 8px; }
+.end-sub { font-size: 20px; color: var(--text2); margin-bottom: 32px; }
+.end-scores { display: flex; gap: 40px; margin-bottom: 32px; }
+.end-team { text-align: center; }
+.end-team .score { font-size: 56px; font-weight: 800; }
+.end-team.A .score { color: var(--teamA); }
+.end-team.B .score { color: var(--teamB); }
+.end-team .label { font-size: 14px; color: var(--text3); }
+
+/* Notification toast */
+.toast { position: fixed; top: 16px; right: 16px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 10px 16px; font-size: 13px; z-index: 300; max-width: 280px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.toast.show { opacity: 1; }
+.toast.err { border-color: var(--fail); color: var(--fail); }
+
+/* Misc */
+.suit-h { color: var(--hearts); } .suit-d { color: var(--diamonds); }
+.suit-s { color: var(--spades); } .suit-c { color: var(--clubs); }
+</style>
+</head>
+<body>
+
+<!-- LOBBY -->
+<div id="lobby">
+  <div class="logo">Litera<span>♠</span>ture</div>
+  <div class="tagline">The classic Indian card game — online with your batch</div>
+  <div class="card-box">
+    <h2>Join the game</h2>
+    <input type="text" id="nameInput" placeholder="Your name" maxlength="16">
+    <button class="btn-primary" onclick="createRoom()">Create new room</button>
+    <div class="divider">or join existing</div>
+    <div style="display:flex;gap:8px">
+      <input type="text" id="codeInput" placeholder="Room code" maxlength="4" style="text-transform:uppercase">
+      <button class="btn-secondary" onclick="joinRoom()">Join</button>
+    </div>
+    <div class="error-msg" id="lobbyErr"></div>
+  </div>
+</div>
+
+<!-- SEAT PICKER -->
+<div id="seatPicker">
+  <div style="margin-bottom:6px;font-size:22px;font-weight:800;color:var(--gold)">Litera♠ture</div>
+  <div class="room-code">Room: <span id="displayCode">----</span></div>
+  <div style="font-size:12px;color:var(--text3);margin-bottom:16px">Share this code with friends on the same WiFi</div>
+  <div class="team-legend">
+    <div class="tl a"><div class="dot"></div> Team A (seats 1,3,5)</div>
+    <div class="tl b"><div class="dot"></div> Team B (seats 2,4,6)</div>
+  </div>
+  <div class="seat-info">Tap a seat to claim it. Teams alternate around the table.</div>
+  <div class="seat-grid" id="seatGrid"></div>
+  <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Players in room: <span id="playerCount">0</span>/6</div>
+  <button class="btn-primary" id="startBtn" onclick="startGame()" style="max-width:300px;width:100%">Start Game</button>
+  <div class="error-msg" id="seatErr"></div>
+</div>
+
+<!-- GAME -->
+<div id="game">
+  <div class="game-header">
+    <div>
+      <div class="gh-title">Litera♠ture</div>
+      <div class="gh-room">Room: <span id="ghRoom"></span></div>
+    </div>
+    <div class="gh-turn" id="ghTurn">Waiting…</div>
+  </div>
+  <div class="game-body">
+    <div class="sidebar">
+      <div class="score-row">
+        <div class="score-box A"><div class="score-num" id="scoreA">0</div><div class="score-label">Team A</div></div>
+        <div class="score-box B"><div class="score-num" id="scoreB">0</div><div class="score-label">Team B</div></div>
+      </div>
+      <div>
+        <div class="section-title">Books</div>
+        <div id="booksList"></div>
+      </div>
+      <div style="flex:1"></div>
+      <div>
+        <div class="section-title">Log</div>
+        <div class="log-panel" id="logPanel"></div>
+      </div>
+    </div>
+    <div class="main-area">
+      <div class="table-area">
+        <div style="font-size:11px;color:var(--text3);text-align:center;padding:4px 0">
+          Click an opponent to target them. Select a card from your hand. Then Ask!
+        </div>
+        <div class="players-grid" id="playersGrid"></div>
+      </div>
+      <div class="action-panel" id="actionPanel">
+        <div class="ap-title" id="apTitle">Waiting for your turn…</div>
+        <div class="ap-row" id="apRow"></div>
+      </div>
+      <div class="my-hand-area">
+        <div class="my-hand-label">Your hand (<span id="myHandCount">0</span> cards)</div>
+        <div class="hand-cards" id="handCards"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- END SCREEN -->
+<div id="endScreen">
+  <div class="end-title" id="endTitle">Game Over</div>
+  <div class="end-sub" id="endSub"></div>
+  <div class="end-scores">
+    <div class="end-team A"><div class="score" id="endScoreA">0</div><div class="label">Team A</div></div>
+    <div class="end-team B"><div class="score" id="endScoreB">0</div><div class="label">Team B</div></div>
+  </div>
+</div>
+
+<!-- DECLARE MODAL -->
+<div class="modal-overlay" id="declareModal" style="display:none">
+  <div class="modal">
+    <h3>Declare a Book <button class="modal-close" onclick="closeDeclare()">×</button></h3>
+    <div class="book-select-row">
+      <label>Book</label>
+      <select id="declareBook" onchange="renderDeclareCards()">
+        <option value="">— pick a book —</option>
+      </select>
+    </div>
+    <div id="declarePlayersArea"></div>
+    <div class="declare-warn" id="declareWarn"></div>
+    <div style="margin-top:16px;display:flex;gap:8px;">
+      <button class="btn-declare" onclick="submitDeclare()" style="flex:1">Declare</button>
+      <button class="btn-secondary" onclick="closeDeclare()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+const SUIT_ICONS = { hearts: '♥', diamonds: '♦', spades: '♠', clubs: '♣' };
+const SUIT_LETTER = { hearts: 'H', diamonds: 'D', spades: 'S', clubs: 'C' };
+const BOOK_LABEL = {
+  hearts_high: '♥ High (A-9)', hearts_low: '♥ Low (7-2)',
+  diamonds_high: '♦ High (A-9)', diamonds_low: '♦ Low (7-2)',
+  spades_high: '♠ High (A-9)', spades_low: '♠ Low (7-2)',
+  clubs_high: '♣ High (A-9)', clubs_low: '♣ Low (7-2)',
+};
+const ALL_BOOKS = Object.keys(BOOK_LABEL);
+const HIGH_RANKS = ['A','K','Q','J','10','9'];
+const LOW_RANKS = ['7','6','5','4','3','2'];
+
+let ws, myId, myRoomCode, gameState;
+let selectedTarget = null;
+
+function suitClass(suit) {
+  return { hearts:'suit-h', diamonds:'suit-d', spades:'suit-s', clubs:'suit-c' }[suit] || '';
+}
+
+function cardBook(card) {
+  return `${card.suit}_${HIGH_RANKS.includes(card.rank) ? 'high' : 'low'}`;
+}
+
+function showToast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err?' err':'');
+  clearTimeout(window._toastTimer);
+  window._toastTimer = setTimeout(() => t.className = 'toast', 2800);
+}
+
+function connect() {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}`);
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'joined') { myId = msg.playerId; myRoomCode = msg.roomCode; document.getElementById('displayCode').textContent = msg.roomCode; document.getElementById('ghRoom').textContent = msg.roomCode; }
+    if (msg.type === 'state') { gameState = msg.state; render(); }
+    if (msg.type === 'error') { showToast(msg.msg, true); document.getElementById('lobbyErr').textContent = msg.msg; document.getElementById('seatErr').textContent = msg.msg; }
+  };
+  ws.onclose = () => showToast('Disconnected. Reload to reconnect.', true);
+}
+
+function send(obj) { if(ws && ws.readyState===1) ws.send(JSON.stringify(obj)); }
+
+function createRoom() {
+  const name = document.getElementById('nameInput').value.trim() || 'Player';
+  connect();
+  ws.onopen = () => send({ type:'create', name });
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'joined') { myId = msg.playerId; myRoomCode = msg.roomCode; document.getElementById('displayCode').textContent = msg.roomCode; document.getElementById('ghRoom').textContent = msg.roomCode; showScreen('seatPicker'); }
+    if (msg.type === 'state') { gameState = msg.state; render(); }
+    if (msg.type === 'error') { showToast(msg.msg, true); document.getElementById('lobbyErr').textContent = msg.msg; document.getElementById('seatErr').textContent = msg.msg; }
+  };
+  ws.onclose = () => showToast('Disconnected.', true);
+}
+
+function joinRoom() {
+  const name = document.getElementById('nameInput').value.trim() || 'Player';
+  const code = document.getElementById('codeInput').value.trim().toUpperCase();
+  if (!code) { document.getElementById('lobbyErr').textContent = 'Enter a room code'; return; }
+  connect();
+  ws.onopen = () => send({ type:'join', name, code });
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'joined') { myId = msg.playerId; myRoomCode = msg.roomCode; document.getElementById('displayCode').textContent = msg.roomCode; document.getElementById('ghRoom').textContent = msg.roomCode; showScreen('seatPicker'); }
+    if (msg.type === 'state') { gameState = msg.state; render(); }
+    if (msg.type === 'error') { showToast(msg.msg, true); document.getElementById('lobbyErr').textContent = msg.msg; document.getElementById('seatErr').textContent = msg.msg; }
+  };
+  ws.onclose = () => showToast('Disconnected.', true);
+}
+
+function showScreen(id) {
+  for (const s of ['lobby','seatPicker','game']) document.getElementById(s).style.display = 'none';
+  document.getElementById(id).style.display = id === 'game' ? 'flex' : 'flex';
+  if (id === 'game') document.getElementById('game').style.display = 'flex';
+}
+
+function render() {
+  if (!gameState) return;
+  if (gameState.phase === 'lobby') { showScreen('seatPicker'); renderSeats(); }
+  else if (gameState.phase === 'playing' || gameState.phase === 'ended') { showScreen('game'); renderGame(); }
+  if (gameState.phase === 'ended') showEndScreen();
+}
+
+// ── SEAT PICKER RENDER ──
+function renderSeats() {
+  const grid = document.getElementById('seatGrid');
+  grid.innerHTML = '';
+  const seatNames = {};
+  for (const p of gameState.players) { if (p.seatIndex !== null) seatNames[p.seatIndex] = p; }
+  document.getElementById('playerCount').textContent = gameState.players.length;
+  const myPlayer = gameState.players.find(p => p.id === myId);
+
+  for (let i = 0; i < 6; i++) {
+    const occupant = seatNames[i];
+    const team = i % 2 === 0 ? 'A' : 'B';
+    const isMe = occupant && occupant.id === myId;
+    const taken = !!occupant;
+    const slot = document.createElement('div');
+    slot.className = `seat-slot team${team}${isMe?' mine':''}${taken&&!isMe?' taken':''}`;
+    slot.innerHTML = `<div class="seat-num">Seat ${i+1}</div><div class="seat-team">Team ${team}</div><div class="seat-name">${occupant ? occupant.name : ''}</div>${isMe?'<div class="me-badge">YOU</div>':''}`;
+    if (!taken && (!myPlayer || myPlayer.seatIndex === null)) slot.onclick = () => claimSeat(i);
+    else if (isMe) slot.onclick = () => {}; // no-op
+    grid.appendChild(slot);
+  }
+
+  // Show start button only if all 6 seats taken
+  const allSeated = gameState.players.length === 6 && gameState.players.every(p => p.seatIndex !== null);
+  document.getElementById('startBtn').style.display = allSeated ? 'block' : 'none';
+}
+
+function claimSeat(i) { send({ type:'assignSeat', seat: i }); }
+function startGame() { document.getElementById('seatErr').textContent=''; send({ type:'startGame' }); }
+
+// ── GAME RENDER ──
+function renderGame() {
+  if (!gameState) return;
+  const me = gameState.players.find(p => p.id === myId);
+  const isMyTurn = gameState.currentTurn === myId;
+  const currentPlayer = gameState.players.find(p => p.id === gameState.currentTurn);
+
+  // Header turn indicator
+  const ghTurn = document.getElementById('ghTurn');
+  if (isMyTurn) { ghTurn.textContent = 'Your turn!'; ghTurn.className = 'gh-turn mine'; }
+  else { ghTurn.textContent = `${currentPlayer?.name || '?'}'s turn`; ghTurn.className = 'gh-turn other'; }
+
+  // Scores & books
+  document.getElementById('scoreA').textContent = gameState.books.A.length;
+  document.getElementById('scoreB').textContent = gameState.books.B.length;
+  renderBooks();
+  renderLog();
+  renderPlayers();
+  renderHand();
+  renderActionPanel();
+}
+
+function renderBooks() {
+  const el = document.getElementById('booksList');
+  el.innerHTML = '';
+  for (const bk of ALL_BOOKS) {
+    const inA = gameState.books.A.includes(bk);
+    const inB = gameState.books.B.includes(bk);
+    const cls = inA ? 'claimed-A' : inB ? 'claimed-B' : 'unclaimed';
+    const team = inA ? ' · Team A' : inB ? ' · Team B' : '';
+    el.innerHTML += `<div class="book-item ${cls}"><div class="book-dot"></div>${BOOK_LABEL[bk]}${team}</div>`;
+  }
+}
+
+function renderLog() {
+  const el = document.getElementById('logPanel');
+
+  if (!gameState.log || gameState.log.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const last = gameState.log[gameState.log.length - 1];
+
+  el.innerHTML = `<div class="log-item ${last.type}">${last.msg}</div>`;
+}
+
+function renderPlayers() {
+  const grid = document.getElementById('playersGrid');
+  grid.innerHTML = '';
+  const sorted = [...gameState.players].sort((a,b) => a.seatIndex - b.seatIndex);
+  for (const p of sorted) {
+    const isMe = p.id === myId;
+    const isTurn = p.id === gameState.currentTurn;
+    const isSelected = p.id === selectedTarget;
+    const isOpponent = !isMe && p.team !== gameState.players.find(pl=>pl.id===myId)?.team;
+    const div = document.createElement('div');
+    div.className = `player-card team${p.team}${isTurn?' active-turn':''}${isMe?' me-card':''}${isSelected?' selected-target':''}`;
+    if (isOpponent) div.style.cursor = 'pointer';
+    const backs = Array(p.cardCount).fill(0).map(()=>`<div class="card-back">♦</div>`).join('');
+    div.innerHTML = `
+      <div class="pc-header">
+        <div class="pc-avatar">${p.name.slice(0,2).toUpperCase()}</div>
+        <div class="pc-name">${p.name}</div>
+        <div class="pc-team-tag">T${p.team}</div>
+      </div>
+      <div class="pc-cards">${backs}</div>
+      <div class="pc-count">${p.cardCount} card${p.cardCount!==1?'s':''} · Seat ${p.seatIndex+1}</div>
+      ${isMe?'<div class="you-badge">YOU</div>':''}
+    `;
+    if (isOpponent) div.onclick = () => selectTarget(p.id);
+    grid.appendChild(div);
+  }
+}
+
+function selectTarget(id) {
+  selectedTarget = selectedTarget === id ? null : id;
+  renderPlayers();
+  renderActionPanel();
+}
+
+let selectedAskCard = null;
+
+function renderHand() {
+  const me = gameState.players.find(p => p.id === myId);
+  if (!me || !me.hand) return;
+  document.getElementById('myHandCount').textContent = me.hand.length;
+  const el = document.getElementById('handCards');
+  el.innerHTML = '';
+  // Sort by suit then rank
+  const rankOrder = {'A':1,'K':2,'Q':3,'J':4,'10':5,'9':6,'7':7,'6':8,'5':9,'4':10,'3':11,'2':12};
+  const suitOrder = {hearts:1,diamonds:2,clubs:3,spades:4};
+  const sorted = [...me.hand].sort((a,b) => (suitOrder[a.suit]-suitOrder[b.suit])||rankOrder[a.rank]-rankOrder[b.rank]);
+  for (const card of sorted) {
+    const isSelected = selectedAskCard?.id === card.id;
+    const div = document.createElement('div');
+    div.className = `playing-card ${card.suit}`;
+    div.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit-icon">${SUIT_ICONS[card.suit]}</div>`;
+    el.appendChild(div);
+  }
+}
+
+
+function renderActionPanel() {
+  const me = gameState.players.find(p => p.id === myId);
+  const isMyTurn = gameState.currentTurn === myId;
+  const myTeamTurn = gameState.players.find(p=>p.id===gameState.currentTurn)?.team === me?.team;
+  const apTitle = document.getElementById('apTitle');
+  const apRow = document.getElementById('apRow');
+  apRow.innerHTML = '';
+
+  if (!isMyTurn) {
+    apTitle.textContent = myTeamTurn ? "Your teammate's turn — you can declare if ready" : "Opponent's turn — wait…";
+    if (myTeamTurn) {
+      const btn = document.createElement('button');
+      btn.className = 'btn-declare'; btn.textContent = '📖 Declare a Book';
+      btn.onclick = openDeclare;
+      apRow.appendChild(btn);
+    }
+    return;
+  }
+
+  // Askable cards dropdown
+  const cardSelect = document.createElement('select');
+  cardSelect.style.marginRight = '8px';
+
+  const def = document.createElement('option');
+  def.value = '';
+  def.textContent = 'Select card';
+  cardSelect.appendChild(def);
+
+  (gameState.askableCards || []).forEach(c => {
+    const opt = document.createElement('option');
+    const [r, s] = c.split('_');
+    opt.value = c;
+    opt.textContent = `${r} ${SUIT_ICONS[s]}`;
+    cardSelect.appendChild(opt);
+  });
+
+  cardSelect.value = selectedAskCard || '';
+
+  cardSelect.onchange = () => {
+    selectedAskCard = cardSelect.value || null;
+    renderActionPanel();
+  };
+
+  apRow.appendChild(cardSelect);
+
+  apTitle.textContent = 'Your turn — select an opponent and a card to ask for';
+
+  // Ask button
+  const canAsk = selectedTarget && selectedAskCard;
+  const askBtn = document.createElement('button');
+  askBtn.className = 'btn-ask'; askBtn.textContent = '❓ Ask';
+  askBtn.disabled = !canAsk;
+  askBtn.onclick = doAsk;
+
+  // Validate ask
+  if (selectedTarget && selectedAskCard) {
+    const [rank, suit] = selectedAskCard.split('_');
+    const book = `${suit}_${HIGH_RANKS.includes(rank) ? 'high' : 'low'}`;
+    const myBookCards = (me.hand || []).filter(c => cardBook(c) === book);
+    if (myBookCards.length === 0) { askBtn.disabled = true; }
+    const targetPlayer = gameState.players.find(p=>p.id===selectedTarget);
+    const [rank2, suit2] = selectedAskCard.split('_');
+    apTitle.textContent = `Ask ${targetPlayer?.name} for ${rank2} ${SUIT_ICONS[suit2]}`;
+  }
+
+  apRow.appendChild(askBtn);
+
+  const declBtn = document.createElement('button');
+  declBtn.className = 'btn-declare'; declBtn.textContent = '📖 Declare';
+  declBtn.onclick = openDeclare;
+  apRow.appendChild(declBtn);
+}
+
+function doAsk() {
+  if (!selectedTarget || !selectedAskCard) return;
+  const target = gameState.players.find(p=>p.id===selectedTarget);
+  if (!target || target.cardCount === 0) { showToast('That player has no cards', true); return; }
+  send({ type:'ask', targetId: selectedTarget, cardId: selectedAskCard });
+  selectedAskCard = null; selectedTarget = null;
+}
+
+// ── DECLARE MODAL ──
+function openDeclare() {
+  const me = gameState.players.find(p => p.id === myId);
+  const myTeam = me?.team;
+  const myTeamTurn = gameState.players.find(p=>p.id===gameState.currentTurn)?.team === myTeam;
+  if (!myTeamTurn) { showToast('Can only declare on your team\'s turn', true); return; }
+
+  const sel = document.getElementById('declareBook');
+  sel.innerHTML = '<option value="">— pick a book —</option>';
+
+  // Only show undeclared books
+  const declared = [...gameState.books.A, ...gameState.books.B];
+  for (const bk of ALL_BOOKS) {
+    if (!declared.includes(bk)) {
+      // Check if I have at least one card from this book
+      const [suit, side] = bk.split('_');
+      const ranks = side === 'high' ? HIGH_RANKS : LOW_RANKS;
+      const hasCard = (me.hand || []).some(c => c.suit === suit && ranks.includes(c.rank));
+      if (hasCard) sel.innerHTML += `<option value="${bk}">${BOOK_LABEL[bk]}</option>`;
+    }
+  }
+
+  document.getElementById('declarePlayersArea').innerHTML = '';
+  document.getElementById('declareWarn').textContent = '';
+  document.getElementById('declareModal').style.display = 'flex';
+}
+
+function closeDeclare() { document.getElementById('declareModal').style.display = 'none'; }
+
+function renderDeclareCards() {
+  const bookKey = document.getElementById('declareBook').value;
+  if (!bookKey) { document.getElementById('declarePlayersArea').innerHTML = ''; return; }
+  const [suit, side] = bookKey.split('_');
+  const ranks = side === 'high' ? HIGH_RANKS : LOW_RANKS;
+  const me = gameState.players.find(p => p.id === myId);
+  const myTeam = me?.team;
+  const teammates = gameState.players.filter(p => p.team === myTeam);
+
+  let html = '';
+  for (const pl of teammates) {
+    html += `<div class="declare-player-section">
+      <h4>${pl.name}${pl.id===myId?' (you)':''}</h4>
+      <div>`;
+    for (const rank of ranks) {
+      const cardId = `${rank}_${suit}`;
+      const icon = SUIT_ICONS[suit];
+      const suitCls = ['hearts','diamonds'].includes(suit) ? 'hearts' : 'spades';
+      html += `<div class="card-toggle ${suitCls}" id="ct_${pl.id}_${cardId}" onclick="toggleCardAssign('${pl.id}','${cardId}')">${rank}${icon}</div>`;
+    }
+    html += `</div></div>`;
+  }
+  document.getElementById('declarePlayersArea').innerHTML = html;
+
+  // Pre-select my cards
+  for (const card of (me.hand || [])) {
+    if (card.suit === suit && ranks.includes(card.rank)) {
+      const el = document.getElementById(`ct_${myId}_${card.id}`);
+      if (el) el.classList.add('selected');
+    }
+  }
+}
+
+function toggleCardAssign(playerId, cardId) {
+  const el = document.getElementById(`ct_${playerId}_${cardId}`);
+  if (!el) return;
+  // Remove from all players first
+  const bookKey = document.getElementById('declareBook').value;
+  if (!bookKey) return;
+  const [suit, side] = bookKey.split('_');
+  const ranks = side === 'high' ? HIGH_RANKS : LOW_RANKS;
+  const me = gameState.players.find(p => p.id === myId);
+  const myTeam = me?.team;
+  const teammates = gameState.players.filter(p => p.team === myTeam);
+  for (const pl of teammates) {
+    const other = document.getElementById(`ct_${pl.id}_${cardId}`);
+    if (other) other.classList.remove('selected');
+  }
+  el.classList.add('selected');
+}
+
+function submitDeclare() {
+  const bookKey = document.getElementById('declareBook').value;
+  if (!bookKey) { document.getElementById('declareWarn').textContent = 'Pick a book first'; return; }
+  const [suit, side] = bookKey.split('_');
+  const ranks = side === 'high' ? HIGH_RANKS : LOW_RANKS;
+  const me = gameState.players.find(p => p.id === myId);
+  const myTeam = me?.team;
+  const teammates = gameState.players.filter(p => p.team === myTeam);
+
+  const guess = {};
+  let assigned = 0;
+  for (const pl of teammates) {
+    guess[pl.id] = [];
+    for (const rank of ranks) {
+      const cardId = `${rank}_${suit}`;
+      const el = document.getElementById(`ct_${pl.id}_${cardId}`);
+      if (el && el.classList.contains('selected')) { guess[pl.id].push(cardId); assigned++; }
+    }
+  }
+  if (assigned !== 6) { document.getElementById('declareWarn').textContent = `Assign all 6 cards (${assigned}/6 assigned)`; return; }
+
+  send({ type:'declare', bookKey, guess });
+  closeDeclare();
+}
+
+function showEndScreen() {
+  const a = gameState.books.A.length, b = gameState.books.B.length;
+  const winner = a > b ? 'Team A Wins!' : b > a ? 'Team B Wins!' : "It's a Tie!";
+  document.getElementById('endTitle').textContent = winner;
+  document.getElementById('endSub').textContent = `Final scores`;
+  document.getElementById('endScoreA').textContent = a;
+  document.getElementById('endScoreB').textContent = b;
+  document.getElementById('endScreen').style.display = 'flex';
+}
+</script>
+</body>
+</html>

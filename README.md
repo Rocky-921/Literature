@@ -32,4 +32,3 @@ Server starts at `http://0.0.0.0:3000`
 - Declare a book by correctly guessing which teammate has which card
 - Wrong distribution → book forfeited; opponent has any card → opponent gets it
 - Most books (out of 8) wins!
-# Literature
