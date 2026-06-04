@@ -25,6 +25,13 @@ for (const suit of SUITS) {
   BOOK_KEYS.push(`${suit}_low`);
 }
 
+const BOOK_LABEL_SERVER = {
+  hearts_high: '♥ High (A-9)', hearts_low: '♥ Low (7-2)',
+  diamonds_high: '♦ High (A-9)', diamonds_low: '♦ Low (7-2)',
+  spades_high: '♠ High (A-9)', spades_low: '♠ Low (7-2)',
+  clubs_high: '♣ High (A-9)', clubs_low: '♣ Low (7-2)',
+};
+
 function cardBook(card) {
   const { suit, rank } = card;
   const highRanks = ['A', 'K', 'Q', 'J', '10', '9'];
@@ -54,13 +61,23 @@ function shuffle(arr) {
 // ─── Rooms ─────────────────────────────────────────────────────────────────
 const rooms = {};
 
+// sessionToken -> { playerId, roomCode, name, seatIndex, team, hand, reconnectTimer }
+const sessionStore = {};
+
+const RECONNECT_GRACE_MS = 90_000; // 90 seconds to reconnect
+
+function generateToken() {
+  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+
 function createRoom(code) {
   return {
     code,
     phase: 'lobby',  // lobby | playing | ended
-    players: [],     // { id, name, ws, team, seatIndex, hand: [] }
+    players: [],     // { id, name, ws, team, seatIndex, hand: [], sessionToken }
     currentTurn: null,
-    books: { A: [], B: [] },  // team A/B declared books
+    books: { A: [], B: [] },
+    revokedBooks: [],          // books forfeited due to wrong declaration
     log: [],
     bookOwnership: {},  // bookKey -> { team, cards: {playerId: [cards]} } once declared
   };
@@ -107,9 +124,11 @@ function buildStateFor(room, playerId) {
       seatIndex: p.seatIndex,
       cardCount: p.hand.length,
       hand: p.id === playerId ? p.hand : new Array(p.hand.length).fill({ back: true }),
+      disconnected: p.ws.readyState === -1,
     })),
     currentTurn: room.currentTurn,
     books: room.books,
+    revokedBooks: room.revokedBooks || [],
     log: room.log.slice(-30),
     myId: playerId,
     askableCards: player ? getAskableCards(player) : [],
@@ -138,10 +157,6 @@ function opponents(room, id) {
   return room.players.filter(p => p.team !== team);
 }
 
-function nextTurnAfterPass(room, fromId) {
-  // Pass turn to the player who denied (they are an opponent)
-  // This is set by the calling code
-}
 
 function startGame(room) {
   const deck = shuffle(buildDeck());
@@ -255,7 +270,7 @@ function handleDeclare(room, declarerId, bookKey, guess) {
   if (cardsWithOther.length > 0) {
     // Other team wins the book
     room.books[otherTeam].push(bookKey);
-    addLog(room, `${declarer.name} declared ${bookKey} but some cards were with the other team! Team ${otherTeam} gets the book.`, 'fail');
+    addLog(room, `${declarer.name} declared ${BOOK_LABEL_SERVER[bookKey] || bookKey} — cards were with Team ${otherTeam}! Team ${otherTeam} wins the book. 📕`, 'fail');
     removeBookCards(room, bookKey, expectedCards);
     checkEnd(room);
     broadcastRoom(room);
@@ -288,8 +303,10 @@ function handleDeclare(room, declarerId, bookKey, guess) {
   }
 
   if (!guessCorrect) {
-    // Forfeited — no one gets the book
-    addLog(room, `${declarer.name} declared ${bookKey} with wrong distribution — book forfeited!`, 'fail');
+    // Forfeited — no one gets the book, mark revoked
+    room.revokedBooks = room.revokedBooks || [];
+    room.revokedBooks.push(bookKey);
+    addLog(room, `${declarer.name} declared ${BOOK_LABEL_SERVER[bookKey] || bookKey} with wrong distribution — book forfeited! ❌`, 'fail');
     removeBookCards(room, bookKey, expectedCards);
     checkEnd(room);
     broadcastRoom(room);
@@ -298,7 +315,7 @@ function handleDeclare(room, declarerId, bookKey, guess) {
 
   // Correct!
   room.books[declarer.team].push(bookKey);
-  addLog(room, `${declarer.name} correctly declared ${bookKey}! Team ${declarer.team} gets the book! 🎉`, 'success');
+  addLog(room, `${declarer.name} correctly declared ${BOOK_LABEL_SERVER[bookKey] || bookKey}! Team ${declarer.team} wins the book! 🎉`, 'success');
   removeBookCards(room, bookKey, expectedCards);
   checkEnd(room);
   broadcastRoom(room);
@@ -336,6 +353,23 @@ function checkEnd(room) {
   }
 }
 
+// ─── Restart ───────────────────────────────────────────────────────────────
+function restartRoom(room) {
+  room.phase = 'lobby';
+  room.currentTurn = null;
+  room.books = { A: [], B: [] };
+  room.revokedBooks = [];
+  room.log = [];
+  room.bookOwnership = {};
+  for (const p of room.players) {
+    p.hand = [];
+    p.seatIndex = null;
+    p.team = null;
+  }
+  addLog(room, 'Game restarted! Pick your seats.', 'system');
+  broadcastRoom(room);
+}
+
 // ─── WebSocket Handling ────────────────────────────────────────────────────
 let playerCount = 0;
 
@@ -343,18 +377,45 @@ wss.on('connection', (ws) => {
   const playerId = `p${++playerCount}_${Math.random().toString(36).slice(2, 6)}`;
   let roomCode = null;
 
+  // Native WS-level heartbeat — kills truly dead sockets (mobile backgrounded)
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+
   ws.on('message', (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
+
+    if (msg.type === 'ping') {
+      ws.send(JSON.stringify({ type: 'pong' }));
+      return;
+    }
 
     if (msg.type === 'create') {
       roomCode = Math.random().toString(36).slice(2, 6).toUpperCase();
       rooms[roomCode] = createRoom(roomCode);
       const room = rooms[roomCode];
-      const player = { id: playerId, name: msg.name || 'Player', ws, team: null, seatIndex: null, hand: [] };
+      const token = generateToken();
+      const player = { id: playerId, name: msg.name || 'Player', ws, team: null, seatIndex: null, hand: [], sessionToken: token };
       room.players.push(player);
-      ws.send(JSON.stringify({ type: 'joined', playerId, roomCode }));
+      sessionStore[token] = { playerId, roomCode, name: player.name };
+      ws.send(JSON.stringify({ type: 'joined', playerId, roomCode, sessionToken: token }));
       broadcastRoom(room);
+    }
+
+    else if (msg.type === 'leaveRoom') {
+      // Player voluntarily leaves during lobby so someone else can join
+      const room = rooms[roomCode];
+      if (!room || room.phase !== 'lobby') return;
+      const player = getPlayer(room, playerId);
+      if (!player) return;
+      addLog(room, `${player.name} left the room.`, 'system');
+      room.players = room.players.filter(p => p.id !== playerId);
+      const token = player.sessionToken;
+      if (token) delete sessionStore[token];
+      roomCode = null;
+      if (room.players.length === 0) delete rooms[room.code];
+      else broadcastRoom(room);
+      ws.send(JSON.stringify({ type: 'leftRoom' }));
     }
 
     else if (msg.type === 'join') {
@@ -363,11 +424,68 @@ wss.on('connection', (ws) => {
       if (!room) return ws.send(JSON.stringify({ type: 'error', msg: 'Room not found' }));
       if (room.players.length >= 6) return ws.send(JSON.stringify({ type: 'error', msg: 'Room is full' }));
       if (room.phase !== 'lobby') return ws.send(JSON.stringify({ type: 'error', msg: 'Game already started' }));
-      const player = { id: playerId, name: msg.name || 'Player', ws, team: null, seatIndex: null, hand: [] };
+      const token = generateToken();
+      const player = { id: playerId, name: msg.name || 'Player', ws, team: null, seatIndex: null, hand: [], sessionToken: token };
       room.players.push(player);
-      ws.send(JSON.stringify({ type: 'joined', playerId, roomCode }));
+      sessionStore[token] = { playerId, roomCode, name: player.name };
+      ws.send(JSON.stringify({ type: 'joined', playerId, roomCode, sessionToken: token }));
       addLog(room, `${player.name} joined the room.`, 'system');
       broadcastRoom(room);
+    }
+
+    else if (msg.type === 'rejoin') {
+      const token = msg.sessionToken;
+      const session = sessionStore[token];
+      if (!session) return ws.send(JSON.stringify({ type: 'error', msg: 'Session not found or expired. Please join fresh.' }));
+
+      roomCode = session.roomCode;
+      const room = rooms[roomCode];
+      if (!room) return ws.send(JSON.stringify({ type: 'error', msg: 'Room no longer exists.' }));
+
+      // Cancel pending removal timer
+      if (session.reconnectTimer) {
+        clearTimeout(session.reconnectTimer);
+        session.reconnectTimer = null;
+      }
+
+      // Find existing player slot (may still be in players array as disconnected)
+      let player = room.players.find(p => p.sessionToken === token);
+
+      if (player) {
+        // Swap in new ws
+        player.ws = ws;
+        player.id = session.playerId; // keep same id
+      } else {
+        // Player was removed — restore from session snapshot
+        if (!session.snapshot) {
+          return ws.send(JSON.stringify({ type: 'error', msg: 'Reconnect window expired.' }));
+        }
+        const snap = session.snapshot;
+        player = {
+          id: snap.id,
+          name: snap.name,
+          ws,
+          team: snap.team,
+          seatIndex: snap.seatIndex,
+          hand: snap.hand,
+          sessionToken: token,
+        };
+        room.players.push(player);
+        addLog(room, `${player.name} reconnected.`, 'system');
+      }
+
+      // Update global playerId reference for this connection
+      const rejoiningId = player.id;
+
+      ws.send(JSON.stringify({ type: 'joined', playerId: rejoiningId, roomCode, sessionToken: token }));
+      broadcastRoom(room);
+
+      // Re-bind message handler with correct playerId/roomCode
+      // We do this by updating the closure variables:
+      ws.removeAllListeners('message');
+      ws.removeAllListeners('close');
+      setupPlayerHandlers(ws, rejoiningId, roomCode, token);
+      return;
     }
 
     else if (msg.type === 'assignSeat') {
@@ -418,26 +536,160 @@ wss.on('connection', (ws) => {
         broadcastRoom(room);
       }
     }
+
+    else if (msg.type === 'restartGame') {
+      const room = rooms[roomCode];
+      if (room) restartRoom(room);
+    }
   });
 
   ws.on('close', () => {
-    if (!roomCode) return;
+    handleDisconnect(ws, playerId, roomCode);
+  });
+});
+
+function setupPlayerHandlers(ws, playerId, roomCode, sessionToken) {
+  ws.on('message', (raw) => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch { return; }
+
+    if (msg.type === 'ping') { ws.send(JSON.stringify({ type: 'pong' })); return; }
+
     const room = rooms[roomCode];
     if (!room) return;
-    const player = getPlayer(room, playerId);
-    if (player) {
-      addLog(room, `${player.name} disconnected.`, 'system');
-      room.players = room.players.filter(p => p.id !== playerId);
-      if (room.players.length === 0) {
-        delete rooms[roomCode];
-      } else {
+
+    if (msg.type === 'assignSeat') {
+      if (room.phase !== 'lobby') return;
+      const player = getPlayer(room, playerId);
+      if (!player) return;
+      const seat = parseInt(msg.seat);
+      if (isNaN(seat) || seat < 0 || seat > 5) return;
+      if (room.players.some(p => p.seatIndex === seat && p.id !== playerId)) {
+        return ws.send(JSON.stringify({ type: 'error', msg: 'Seat taken' }));
+      }
+      player.seatIndex = seat;
+      player.team = seat % 2 === 0 ? 'A' : 'B';
+      broadcastRoom(room);
+    }
+
+    else if (msg.type === 'startGame') {
+      if (room.phase !== 'lobby') return;
+      if (room.players.length !== 6) return ws.send(JSON.stringify({ type: 'error', msg: 'Need exactly 6 players' }));
+      if (room.players.some(p => p.seatIndex === null)) return ws.send(JSON.stringify({ type: 'error', msg: 'All players must pick a seat' }));
+      startGame(room);
+    }
+
+    else if (msg.type === 'ask') {
+      const result = handleAsk(room, playerId, msg.targetId, msg.cardId);
+      if (!result.ok) ws.send(JSON.stringify({ type: 'error', msg: result.msg }));
+    }
+
+    else if (msg.type === 'declare') {
+      const result = handleDeclare(room, playerId, msg.bookKey, msg.guess);
+      if (!result.ok) ws.send(JSON.stringify({ type: 'error', msg: result.msg }));
+    }
+
+    else if (msg.type === 'passTurn') {
+      if (room.currentTurn !== playerId) return;
+      const player = getPlayer(room, playerId);
+      const tm = teammates(room, playerId).find(p => p.hand.length > 0);
+      if (tm) {
+        room.currentTurn = tm.id;
+        addLog(room, `${player.name} passed the turn to ${tm.name}.`, 'system');
         broadcastRoom(room);
       }
     }
+
+    else if (msg.type === 'restartGame') {
+      restartRoom(room);
+    }
   });
-});
+
+  ws.on('close', () => {
+    handleDisconnect(ws, playerId, roomCode);
+  });
+}
+
+function handleDisconnect(ws, playerId, roomCode) {
+  if (!roomCode) return;
+  const room = rooms[roomCode];
+  if (!room) return;
+  const player = getPlayer(room, playerId);
+  if (!player) return;
+
+  const token = player.sessionToken;
+
+  if (room.phase === 'playing') {
+    // Save snapshot and keep slot but mark disconnected, give grace period
+    const snapshot = {
+      id: player.id,
+      name: player.name,
+      team: player.team,
+      seatIndex: player.seatIndex,
+      hand: player.hand,
+    };
+
+    if (token && sessionStore[token]) {
+      sessionStore[token].snapshot = snapshot;
+    }
+
+    // Keep player in room (they'll show as disconnected) but null their ws
+    player.ws = { readyState: -1, send: () => {} }; // dead socket stub
+    addLog(room, `${player.name} disconnected. Waiting 90s for reconnect…`, 'system');
+    broadcastRoom(room);
+
+    // Schedule removal after grace period
+    const timer = setTimeout(() => {
+      const stillRoom = rooms[roomCode];
+      if (!stillRoom) return;
+      const stillPlayer = getPlayer(stillRoom, player.id);
+      // Only remove if still using the dead stub (not reconnected)
+      if (stillPlayer && stillPlayer.ws.readyState === -1) {
+        stillRoom.players = stillRoom.players.filter(p => p.id !== player.id);
+        addLog(stillRoom, `${player.name} was removed after timeout.`, 'system');
+        if (stillRoom.players.length === 0) {
+          delete rooms[roomCode];
+        } else {
+          broadcastRoom(stillRoom);
+        }
+      }
+      if (token && sessionStore[token]) {
+        sessionStore[token].reconnectTimer = null;
+      }
+    }, RECONNECT_GRACE_MS);
+
+    if (token && sessionStore[token]) {
+      sessionStore[token].reconnectTimer = timer;
+    }
+
+  } else {
+    // Lobby: just remove immediately
+    addLog(room, `${player.name} left the room.`, 'system');
+    room.players = room.players.filter(p => p.id !== playerId);
+    if (token) delete sessionStore[token];
+    if (room.players.length === 0) {
+      delete rooms[roomCode];
+    } else {
+      broadcastRoom(room);
+    }
+  }
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`Literature card game server running at http://0.0.0.0:${PORT}`);
 });
+
+// ─── Server-side WS keepalive ──────────────────────────────────────────────
+// Pings every 25s. If a socket hasn't responded by next ping, it's terminated.
+// This cleans up truly dead connections (phone went to sleep, WiFi dropped, etc.)
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.isAlive === false) {
+      ws.terminate(); // will trigger 'close' event
+      return;
+    }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 25000);

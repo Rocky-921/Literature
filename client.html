@@ -140,6 +140,8 @@ button { cursor: pointer; border: none; border-radius: var(--radius-sm); font-si
 .book-item.claimed-A { background: var(--teamA-bg); color: var(--teamA); }
 .book-item.claimed-B { background: var(--teamB-bg); color: var(--teamB); }
 .book-item.unclaimed { background: var(--surface2); color: var(--text3); }
+.book-item.revoked { background: rgba(240,80,80,0.1); color: var(--fail); opacity: 0.75; }
+.book-item.revoked .book-dot { background: var(--fail); }
 .book-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 .score-row { display: flex; justify-content: space-between; margin-bottom: 12px; }
 .score-box { text-align: center; padding: 8px; border-radius: var(--radius-sm); flex: 1; }
@@ -150,25 +152,123 @@ button { cursor: pointer; border: none; border-radius: var(--radius-sm); font-si
 .score-box.B .score-num { color: var(--teamB); }
 .score-label { font-size: 10px; color: var(--text3); }
 
-/* Log */
+/* Log — sidebar (desktop): shows last ask + any declaration that followed */
 .log-panel {
-  height: auto;
-  min-height: 40px;
-  padding: 10px 12px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 8px;
 }
 .log-item {
-  font-size: 14px;
+  font-size: 11px;
   font-weight: 600;
-  text-align: center;
+  word-break: break-word;
+  line-height: 1.4;
 }
 .log-item.success { color: var(--success); }
 .log-item.fail { color: var(--fail); }
 .log-item.system { color: var(--text3); font-style: italic; }
 
-/* Declare modal */
+/* Mobile log bar — shown only on small screens */
+#mobileLog {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(15,17,23,0.97);
+  border-top: 1px solid var(--border2);
+  z-index: 50;
+  padding: 0;
+  flex-direction: column;
+}
+#mobileLogToggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
+}
+#mobileLogLatest {
+  font-size: 12px;
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#mobileLogLatest.success { color: var(--success); }
+#mobileLogLatest.fail { color: var(--fail); }
+#mobileLogLatest.system { color: var(--text3); font-style: italic; }
+#mobileLogChevron { font-size: 10px; color: var(--text3); flex-shrink: 0; transition: transform 0.2s; }
+#mobileLogHistory {
+  display: none;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 6px 12px 10px;
+  border-top: 1px solid var(--border);
+  flex-direction: column;
+  gap: 4px;
+}
+#mobileLogHistory.open { display: flex; }
+.ml-item { font-size: 11px; padding: 3px 0; border-bottom: 1px solid var(--border); }
+.ml-item:last-child { border-bottom: none; }
+.ml-item.success { color: var(--success); }
+.ml-item.fail { color: var(--fail); }
+.ml-item.system { color: var(--text3); font-style: italic; }
+@media(max-width: 500px) {
+  #mobileLog { display: flex; }
+  .my-hand-area { padding-bottom: 42px; }
+}
+
+/* ── MOBILE BOOKS BAR ── */
+#mobileBooksBar {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: rgba(26,29,46,0.98);
+  border-bottom: 1px solid var(--border2);
+  z-index: 46;
+  flex-direction: column;
+}
+#mobileBooksToggle {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px; cursor: pointer; user-select: none;
+}
+#mobileBooksScores { font-size: 12px; font-weight: 700; flex: 1; }
+#mobileBooksScores .sa { color: var(--teamA); }
+#mobileBooksScores .sb { color: var(--teamB); }
+#mobileBooksChevron { font-size: 10px; color: var(--text3); transition: transform 0.2s; }
+#mobileBooksPanel {
+  display: none; flex-wrap: wrap; gap: 3px;
+  padding: 5px 12px 8px;
+  border-top: 1px solid var(--border);
+  max-height: 180px; overflow-y: auto;
+}
+#mobileBooksPanel.open { display: flex; }
+.mb-chip { font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+.mb-chip.claimed-A { background: var(--teamA-bg); color: var(--teamA); }
+.mb-chip.claimed-B { background: var(--teamB-bg); color: var(--teamB); }
+.mb-chip.unclaimed { background: var(--surface2); color: var(--text3); }
+.mb-chip.revoked { background: rgba(240,80,80,0.1); color: var(--fail); text-decoration: line-through; opacity: 0.75; }
+@media(max-width: 500px) {
+  #mobileBooksBar { display: flex; }
+  .game-header { margin-top: 32px; }
+}
+
+/* End screen */
+#endScreen { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 200; align-items: center; justify-content: center; flex-direction: column; padding: 24px; text-align: center; }
+.end-title { font-size: 42px; font-weight: 800; color: var(--gold); margin-bottom: 8px; }
+.end-sub { font-size: 18px; color: var(--text2); margin-bottom: 28px; }
+.end-scores { display: flex; gap: 40px; margin-bottom: 32px; }
+.end-team { text-align: center; }
+.end-team .score { font-size: 56px; font-weight: 800; }
+.end-team.A .score { color: var(--teamA); }
+.end-team.B .score { color: var(--teamB); }
+.end-team .label { font-size: 14px; color: var(--text3); }
+.end-actions { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.btn-restart { background: var(--success); color: #000; font-weight: 700; font-size: 14px; padding: 11px 28px; }
+.btn-leave { background: var(--surface3); color: var(--text2); font-size: 14px; padding: 11px 20px; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .modal { background: var(--surface); border: 1px solid var(--border2); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
 .modal h3 { font-size: 18px; font-weight: 700; margin-bottom: 16px; }
@@ -185,17 +285,6 @@ select { background: var(--surface2); border: 1px solid var(--border2); border-r
 .card-toggle.spades,.card-toggle.clubs { color: #8b95ff; }
 .card-toggle.selected.hearts,.card-toggle.selected.diamonds { color: var(--fail); border-color: var(--fail); background: rgba(255,80,80,0.12); }
 .declare-warn { font-size: 12px; color: var(--fail); margin-top: 8px; }
-
-/* End screen */
-#endScreen { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 200; align-items: center; justify-content: center; flex-direction: column; }
-.end-title { font-size: 48px; font-weight: 800; color: var(--gold); margin-bottom: 8px; }
-.end-sub { font-size: 20px; color: var(--text2); margin-bottom: 32px; }
-.end-scores { display: flex; gap: 40px; margin-bottom: 32px; }
-.end-team { text-align: center; }
-.end-team .score { font-size: 56px; font-weight: 800; }
-.end-team.A .score { color: var(--teamA); }
-.end-team.B .score { color: var(--teamB); }
-.end-team .label { font-size: 14px; color: var(--text3); }
 
 /* Notification toast */
 .toast { position: fixed; top: 16px; right: 16px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius-sm); padding: 10px 16px; font-size: 13px; z-index: 300; max-width: 280px; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
@@ -239,6 +328,7 @@ select { background: var(--surface2); border: 1px solid var(--border2); border-r
   <div class="seat-grid" id="seatGrid"></div>
   <div style="font-size:12px;color:var(--text3);margin-bottom:12px">Players in room: <span id="playerCount">0</span>/6</div>
   <button class="btn-primary" id="startBtn" onclick="startGame()" style="max-width:300px;width:100%">Start Game</button>
+  <button class="btn-secondary" id="leaveBtn" onclick="leaveRoom()" style="max-width:300px;width:100%;margin-top:8px">Leave Room</button>
   <div class="error-msg" id="seatErr"></div>
 </div>
 
@@ -289,10 +379,14 @@ select { background: var(--surface2); border: 1px solid var(--border2); border-r
 <!-- END SCREEN -->
 <div id="endScreen">
   <div class="end-title" id="endTitle">Game Over</div>
-  <div class="end-sub" id="endSub"></div>
+  <div class="end-sub" id="endSub">Final Scores</div>
   <div class="end-scores">
     <div class="end-team A"><div class="score" id="endScoreA">0</div><div class="label">Team A</div></div>
     <div class="end-team B"><div class="score" id="endScoreB">0</div><div class="label">Team B</div></div>
+  </div>
+  <div class="end-actions">
+    <button class="btn-restart" onclick="doRestartGame()">🔄 Play Again</button>
+    <button class="btn-leave" onclick="leaveAfterGame()">Leave Room</button>
   </div>
 </div>
 
@@ -315,6 +409,26 @@ select { background: var(--surface2); border: 1px solid var(--border2); border-r
   </div>
 </div>
 
+<!-- MOBILE BOOKS BAR -->
+<div id="mobileBooksBar">
+  <div id="mobileBooksToggle" onclick="toggleMobileBooks()">
+    <span style="font-size:10px;color:var(--text3);flex-shrink:0">📚 BOOKS</span>
+    <span id="mobileBooksScores"><span class="sa">A: 0</span> · <span class="sb">B: 0</span></span>
+    <span id="mobileBooksChevron">▼</span>
+  </div>
+  <div id="mobileBooksPanel"></div>
+</div>
+
+<!-- MOBILE LOG BAR -->
+<div id="mobileLog">
+  <div id="mobileLogToggle" onclick="toggleMobileLog()">
+    <span style="font-size:10px;color:var(--text3);flex-shrink:0">📋 LOG</span>
+    <span id="mobileLogLatest" class="system">No events yet</span>
+    <span id="mobileLogChevron">▲</span>
+  </div>
+  <div id="mobileLogHistory"></div>
+</div>
+
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
@@ -334,8 +448,151 @@ const LOW_RANKS = ['7','6','5','4','3','2'];
 let ws, myId, myRoomCode, gameState;
 let selectedTarget = null;
 
+// ── SESSION PERSISTENCE ──
+function saveSession(playerId, roomCode, sessionToken, name) {
+  localStorage.setItem('lit_session', JSON.stringify({ playerId, roomCode, sessionToken, name }));
+}
+function loadSession() {
+  try { return JSON.parse(localStorage.getItem('lit_session')); } catch { return null; }
+}
+function clearSession() { localStorage.removeItem('lit_session'); }
+
+// Show rejoin banner if a saved session exists
+(function checkSavedSession() {
+  const sess = loadSession();
+  if (!sess) return;
+  const banner = document.createElement('div');
+  banner.id = 'rejoinBanner';
+  banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#252840;border-bottom:1px solid rgba(255,255,255,0.15);padding:10px 16px;display:flex;align-items:center;gap:10px;z-index:400;font-size:13px;';
+  banner.innerHTML = `
+    <span style="flex:1;color:#9198c4">Reconnect as <strong style="color:#e8eaf6">${sess.name}</strong> to room <strong style="color:#f7c94f">${sess.roomCode}</strong>?</span>
+    <button onclick="attemptRejoin()" style="background:#4f8ef7;color:white;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-weight:700;font-size:13px">Rejoin</button>
+    <button onclick="dismissRejoin()" style="background:#2f3354;color:#9198c4;border:none;border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px">Dismiss</button>
+  `;
+  document.body.appendChild(banner);
+})();
+
+function dismissRejoin() {
+  clearSession();
+  const b = document.getElementById('rejoinBanner');
+  if (b) b.remove();
+}
+
+function attemptRejoin() {
+  const sess = loadSession();
+  if (!sess) return;
+  const b = document.getElementById('rejoinBanner');
+  if (b) b.remove();
+  connectAndRejoin(sess);
+}
+
+function connectAndRejoin(sess) {
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}`);
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: 'rejoin', sessionToken: sess.sessionToken }));
+    startHeartbeat();
+  };
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'pong') return;
+    if (msg.type === 'joined') {
+      myId = msg.playerId; myRoomCode = msg.roomCode;
+      saveSession(myId, myRoomCode, msg.sessionToken, sess.name);
+      document.getElementById('displayCode').textContent = msg.roomCode;
+      document.getElementById('ghRoom').textContent = msg.roomCode;
+      showToast('Reconnected!');
+    }
+    if (msg.type === 'state') { gameState = msg.state; render(); }
+    if (msg.type === 'error') {
+      showToast(msg.msg, true);
+      clearSession();
+      document.getElementById('lobbyErr').textContent = msg.msg;
+    }
+  };
+  ws.onclose = () => {
+    stopHeartbeat();
+    showToast('Disconnected. Reload to reconnect.', true);
+  };
+}
+
+// ── HEARTBEAT ──
+let _pingInterval = null;
+function startHeartbeat() {
+  stopHeartbeat();
+  _pingInterval = setInterval(() => {
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'ping' }));
+    }
+  }, 20000); // ping every 20s
+}
+function stopHeartbeat() {
+  if (_pingInterval) { clearInterval(_pingInterval); _pingInterval = null; }
+}
+
+// ── MOBILE LOG ──
+let _mobileLogOpen = false;
+function toggleMobileLog() {
+  _mobileLogOpen = !_mobileLogOpen;
+  const hist = document.getElementById('mobileLogHistory');
+  const chevron = document.getElementById('mobileLogChevron');
+  if (_mobileLogOpen) { hist.classList.add('open'); chevron.style.transform = 'rotate(180deg)'; }
+  else { hist.classList.remove('open'); chevron.style.transform = ''; }
+}
+function getLogEntries(log) {
+  // Find last ask, show it + everything after. If no ask, just the last entry.
+  if (!log || log.length === 0) return [];
+  let lastAskIdx = -1;
+  for (let i = log.length - 1; i >= 0; i--) {
+    if (log[i].msg.includes(' asked ')) { lastAskIdx = i; break; }
+  }
+  return lastAskIdx === -1 ? [log[log.length - 1]] : log.slice(lastAskIdx);
+}
+
+function updateMobileLog(log) {
+  if (!log || log.length === 0) return;
+  const entries = getLogEntries(log);
+  const latest = entries[entries.length - 1];
+  const latestEl = document.getElementById('mobileLogLatest');
+  latestEl.textContent = latest.msg;
+  latestEl.className = latest.type;
+
+  const hist = document.getElementById('mobileLogHistory');
+  hist.innerHTML = [...entries].reverse().map(e =>
+    `<div class="ml-item ${e.type}">${e.msg}</div>`
+  ).join('');
+}
+
 function suitClass(suit) {
   return { hearts:'suit-h', diamonds:'suit-d', spades:'suit-s', clubs:'suit-c' }[suit] || '';
+}
+
+let _mobileBooksOpen = false;
+function toggleMobileBooks() {
+  _mobileBooksOpen = !_mobileBooksOpen;
+  const panel = document.getElementById('mobileBooksPanel');
+  const chevron = document.getElementById('mobileBooksChevron');
+  if (_mobileBooksOpen) { panel.classList.add('open'); chevron.style.transform = 'rotate(180deg)'; }
+  else { panel.classList.remove('open'); chevron.style.transform = ''; }
+}
+function updateMobileBooks() {
+  if (!gameState) return;
+  const a = gameState.books.A.length, b = gameState.books.B.length;
+  document.getElementById('mobileBooksScores').innerHTML =
+    `<span class="sa">A: ${a}</span> · <span class="sb">B: ${b}</span>`;
+  const revoked = gameState.revokedBooks || [];
+  const panel = document.getElementById('mobileBooksPanel');
+  panel.innerHTML = ALL_BOOKS.map(bk => {
+    const inA = gameState.books.A.includes(bk);
+    const inB = gameState.books.B.includes(bk);
+    const isRevoked = revoked.includes(bk);
+    let cls, label;
+    if (isRevoked)      { cls = 'revoked';   label = `${BOOK_LABEL[bk]} ❌`; }
+    else if (inA)       { cls = 'claimed-A'; label = `${BOOK_LABEL[bk]} A`; }
+    else if (inB)       { cls = 'claimed-B'; label = `${BOOK_LABEL[bk]} B`; }
+    else                { cls = 'unclaimed'; label = BOOK_LABEL[bk]; }
+    return `<div class="mb-chip ${cls}">${label}</div>`;
+  }).join('');
 }
 
 function cardBook(card) {
@@ -355,7 +612,12 @@ function connect() {
   ws = new WebSocket(`${proto}//${location.host}`);
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'joined') { myId = msg.playerId; myRoomCode = msg.roomCode; document.getElementById('displayCode').textContent = msg.roomCode; document.getElementById('ghRoom').textContent = msg.roomCode; }
+    if (msg.type === 'joined') {
+      myId = msg.playerId; myRoomCode = msg.roomCode;
+      document.getElementById('displayCode').textContent = msg.roomCode;
+      document.getElementById('ghRoom').textContent = msg.roomCode;
+      if (msg.sessionToken) saveSession(myId, myRoomCode, msg.sessionToken, document.getElementById('nameInput')?.value.trim() || 'Player');
+    }
     if (msg.type === 'state') { gameState = msg.state; render(); }
     if (msg.type === 'error') { showToast(msg.msg, true); document.getElementById('lobbyErr').textContent = msg.msg; document.getElementById('seatErr').textContent = msg.msg; }
   };
@@ -367,14 +629,22 @@ function send(obj) { if(ws && ws.readyState===1) ws.send(JSON.stringify(obj)); }
 function createRoom() {
   const name = document.getElementById('nameInput').value.trim() || 'Player';
   connect();
-  ws.onopen = () => send({ type:'create', name });
+  ws.onopen = () => { send({ type:'create', name }); startHeartbeat(); };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'joined') { myId = msg.playerId; myRoomCode = msg.roomCode; document.getElementById('displayCode').textContent = msg.roomCode; document.getElementById('ghRoom').textContent = msg.roomCode; showScreen('seatPicker'); }
+    if (msg.type === 'pong') return;
+    if (msg.type === 'joined') {
+      myId = msg.playerId; myRoomCode = msg.roomCode;
+      document.getElementById('displayCode').textContent = msg.roomCode;
+      document.getElementById('ghRoom').textContent = msg.roomCode;
+      if (msg.sessionToken) saveSession(myId, myRoomCode, msg.sessionToken, name);
+      showScreen('seatPicker');
+    }
     if (msg.type === 'state') { gameState = msg.state; render(); }
+    if (msg.type === 'leftRoom') { clearSession(); showScreen('lobby'); }
     if (msg.type === 'error') { showToast(msg.msg, true); document.getElementById('lobbyErr').textContent = msg.msg; document.getElementById('seatErr').textContent = msg.msg; }
   };
-  ws.onclose = () => showToast('Disconnected.', true);
+  ws.onclose = () => { stopHeartbeat(); showToast('Disconnected.', true); };
 }
 
 function joinRoom() {
@@ -382,26 +652,39 @@ function joinRoom() {
   const code = document.getElementById('codeInput').value.trim().toUpperCase();
   if (!code) { document.getElementById('lobbyErr').textContent = 'Enter a room code'; return; }
   connect();
-  ws.onopen = () => send({ type:'join', name, code });
+  ws.onopen = () => { send({ type:'join', name, code }); startHeartbeat(); };
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
-    if (msg.type === 'joined') { myId = msg.playerId; myRoomCode = msg.roomCode; document.getElementById('displayCode').textContent = msg.roomCode; document.getElementById('ghRoom').textContent = msg.roomCode; showScreen('seatPicker'); }
+    if (msg.type === 'pong') return;
+    if (msg.type === 'joined') {
+      myId = msg.playerId; myRoomCode = msg.roomCode;
+      document.getElementById('displayCode').textContent = msg.roomCode;
+      document.getElementById('ghRoom').textContent = msg.roomCode;
+      if (msg.sessionToken) saveSession(myId, myRoomCode, msg.sessionToken, name);
+      showScreen('seatPicker');
+    }
     if (msg.type === 'state') { gameState = msg.state; render(); }
+    if (msg.type === 'leftRoom') { clearSession(); showScreen('lobby'); }
     if (msg.type === 'error') { showToast(msg.msg, true); document.getElementById('lobbyErr').textContent = msg.msg; document.getElementById('seatErr').textContent = msg.msg; }
   };
-  ws.onclose = () => showToast('Disconnected.', true);
+  ws.onclose = () => { stopHeartbeat(); showToast('Disconnected.', true); };
 }
 
 function showScreen(id) {
   for (const s of ['lobby','seatPicker','game']) document.getElementById(s).style.display = 'none';
-  document.getElementById(id).style.display = id === 'game' ? 'flex' : 'flex';
-  if (id === 'game') document.getElementById('game').style.display = 'flex';
+  document.getElementById(id).style.display = 'flex';
 }
 
 function render() {
   if (!gameState) return;
-  if (gameState.phase === 'lobby') { showScreen('seatPicker'); renderSeats(); }
-  else if (gameState.phase === 'playing' || gameState.phase === 'ended') { showScreen('game'); renderGame(); }
+  if (gameState.phase === 'lobby') {
+    document.getElementById('endScreen').style.display = 'none';
+    showScreen('seatPicker');
+    renderSeats();
+  } else if (gameState.phase === 'playing' || gameState.phase === 'ended') {
+    showScreen('game');
+    renderGame();
+  }
   if (gameState.phase === 'ended') showEndScreen();
 }
 
@@ -434,6 +717,7 @@ function renderSeats() {
 
 function claimSeat(i) { send({ type:'assignSeat', seat: i }); }
 function startGame() { document.getElementById('seatErr').textContent=''; send({ type:'startGame' }); }
+function leaveRoom() { send({ type:'leaveRoom' }); }
 
 // ── GAME RENDER ──
 function renderGame() {
@@ -460,26 +744,28 @@ function renderGame() {
 function renderBooks() {
   const el = document.getElementById('booksList');
   el.innerHTML = '';
+  const revoked = gameState.revokedBooks || [];
   for (const bk of ALL_BOOKS) {
     const inA = gameState.books.A.includes(bk);
     const inB = gameState.books.B.includes(bk);
-    const cls = inA ? 'claimed-A' : inB ? 'claimed-B' : 'unclaimed';
-    const team = inA ? ' · Team A' : inB ? ' · Team B' : '';
-    el.innerHTML += `<div class="book-item ${cls}"><div class="book-dot"></div>${BOOK_LABEL[bk]}${team}</div>`;
+    const isRevoked = revoked.includes(bk);
+    let cls, label;
+    if (isRevoked)      { cls = 'revoked';    label = `${BOOK_LABEL[bk]} · ❌ Revoked`; }
+    else if (inA)       { cls = 'claimed-A';  label = `${BOOK_LABEL[bk]} · Team A`; }
+    else if (inB)       { cls = 'claimed-B';  label = `${BOOK_LABEL[bk]} · Team B`; }
+    else                { cls = 'unclaimed';  label = BOOK_LABEL[bk]; }
+    el.innerHTML += `<div class="book-item ${cls}"><div class="book-dot"></div>${label}</div>`;
   }
+  updateMobileBooks();
 }
 
 function renderLog() {
   const el = document.getElementById('logPanel');
-
-  if (!gameState.log || gameState.log.length === 0) {
-    el.innerHTML = '';
-    return;
-  }
-
-  const last = gameState.log[gameState.log.length - 1];
-
-  el.innerHTML = `<div class="log-item ${last.type}">${last.msg}</div>`;
+  const log = gameState.log;
+  if (!log || log.length === 0) { el.innerHTML = ''; updateMobileLog([]); return; }
+  const entries = getLogEntries(log);
+  el.innerHTML = entries.map(e => `<div class="log-item ${e.type}">${e.msg}</div>`).join('');
+  updateMobileLog(log);
 }
 
 function renderPlayers() {
@@ -498,7 +784,7 @@ function renderPlayers() {
     div.innerHTML = `
       <div class="pc-header">
         <div class="pc-avatar">${p.name.slice(0,2).toUpperCase()}</div>
-        <div class="pc-name">${p.name}</div>
+        <div class="pc-name">${p.name}${p.disconnected ? ' <span style="font-size:9px;background:#f05050;color:white;border-radius:3px;padding:1px 4px;vertical-align:middle">DC</span>' : ''}</div>
         <div class="pc-team-tag">T${p.team}</div>
       </div>
       <div class="pc-cards">${backs}</div>
@@ -529,7 +815,7 @@ function renderHand() {
   const suitOrder = {hearts:1,diamonds:2,clubs:3,spades:4};
   const sorted = [...me.hand].sort((a,b) => (suitOrder[a.suit]-suitOrder[b.suit])||rankOrder[a.rank]-rankOrder[b.rank]);
   for (const card of sorted) {
-    const isSelected = selectedAskCard?.id === card.id;
+    const isSelected = selectedAskCard === card.id;
     const div = document.createElement('div');
     div.className = `playing-card ${card.suit}`;
     div.innerHTML = `<div class="card-rank">${card.rank}</div><div class="card-suit-icon">${SUIT_ICONS[card.suit]}</div>`;
@@ -726,12 +1012,23 @@ function submitDeclare() {
 
 function showEndScreen() {
   const a = gameState.books.A.length, b = gameState.books.B.length;
-  const winner = a > b ? 'Team A Wins!' : b > a ? 'Team B Wins!' : "It's a Tie!";
+  const winner = a > b ? '🏆 Team A Wins!' : b > a ? '🏆 Team B Wins!' : "🤝 It's a Tie!";
   document.getElementById('endTitle').textContent = winner;
-  document.getElementById('endSub').textContent = `Final scores`;
+  document.getElementById('endSub').textContent = `Final Scores`;
   document.getElementById('endScoreA').textContent = a;
   document.getElementById('endScoreB').textContent = b;
   document.getElementById('endScreen').style.display = 'flex';
+}
+
+function doRestartGame() {
+  document.getElementById('endScreen').style.display = 'none';
+  send({ type: 'restartGame' });
+  // Server will reset to lobby and broadcast; render() will switch to seatPicker
+}
+
+function leaveAfterGame() {
+  clearSession();
+  location.reload();
 }
 </script>
 </body>
